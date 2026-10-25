@@ -1,0 +1,101 @@
+Folder PATH listing for volume Windows X-Lite
+Volume serial number is 00000279 2E71:49E4
+C:.
+|   .gitignore
+|   build.gradle.kts
+|   FILE_MANIFEST.md
+|   gradle.properties
+|   HARDWARE_COMPATIBILITY.md
+|   my_tree.txt
+|   PROJECT_STATUS.md
+|   README.md
+|   settings.gradle.kts
+|   
++---.github
+|   \---workflows
+|           android.yml
+|           
++---app
+|   |   build.gradle.kts
+|   |   proguard-rules.pro
+|   |   
+|   \---src
+|       +---main
+|       |   |   AndroidManifest.xml
+|       |   |   
+|       |   +---java
+|       |   |   \---com
+|       |   |       \---astracam
+|       |   |           \---dualcam
+|       |   |               |   MainActivity.kt
+|       |   |               |   
+|       |   |               +---camera
+|       |   |               |       CameraCapabilityRepository.kt
+|       |   |               |       CameraCaptureController.kt
+|       |   |               |       CameraManagerController.kt
+|       |   |               |       CameraPermissionManager.kt
+|       |   |               |       HdrCaptureCoordinator.kt
+|       |   |               |       
+|       |   |               +---device
+|       |   |               |       DeviceDiagnostics.kt
+|       |   |               |       DeviceProfile.kt
+|       |   |               |       DeviceProfileManager.kt
+|       |   |               |       
+|       |   |               +---diagnostics
+|       |   |               |       DiagnosticsActivity.kt
+|       |   |               |       
+|       |   |               +---gallery
+|       |   |               |       PhotoReviewActivity.kt
+|       |   |               |       
+|       |   |               +---processing
+|       |   |               |       ColourCorrectionProcessor.kt
+|       |   |               |       DetailEnhancementProcessor.kt
+|       |   |               |       ExposureAndToneProcessor.kt
+|       |   |               |       HdrMergeProcessor.kt
+|       |   |               |       ImageProcessingPipeline.kt
+|       |   |               |       NoiseReductionProcessor.kt
+|       |   |               |       
+|       |   |               \---storage
+|       |   |                       ExifMetadataHandler.kt
+|       |   |                       PhotoRepository.kt
+|       |   |                       
+|       |   \---res
+|       |       +---drawable
+|       |       |       bg_shutter_inner.xml
+|       |       |       bg_shutter_outer.xml
+|       |       |       bg_shutter_watch.xml
+|       |       |       ic_camera_switch.xml
+|       |       |       ic_flash_off.xml
+|       |       |       ic_flash_on.xml
+|       |       |       ic_gallery.xml
+|       |       |       ic_hdr_off.xml
+|       |       |       ic_hdr_on.xml
+|       |       |       ic_settings.xml
+|       |       |       
+|       |       +---layout
+|       |       |       activity_diagnostics.xml
+|       |       |       activity_main_phone.xml
+|       |       |       activity_main_watch.xml
+|       |       |       activity_photo_review.xml
+|       |       |       
+|       |       +---values
+|       |       |       bools.xml
+|       |       |       colors.xml
+|       |       |       strings.xml
+|       |       |       styles.xml
+|       |       |       
+|       |       \---values-round
+|       |               bools.xml
+|       |               
+|       \---test
+|           \---java
+|               \---com
+|                   \---astracam
+|                       \---dualdevice
+|                               DeviceProfileTest.kt
+|                               ImageProcessingMathTest.kt
+|                               
+\---gradle
+    \---wrapper
+            gradle-wrapper.properties
+            

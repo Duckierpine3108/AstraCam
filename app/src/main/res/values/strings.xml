@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AstraCam</string>
+    <string name="desc_shutter">Shutter Button</string>
+    <string name="desc_switch_camera">Switch Camera</string>
+    <string name="desc_flash">Toggle Flash</string>
+    <string name="desc_hdr">HDR Mode</string>
+    <string name="desc_settings">Settings</string>
+    <string name="desc_gallery">Gallery</string>
+    <string name="label_hdr_off">HDR OFF</string>
+    <string name="label_hdr_auto">HDR AUTO</string>
+    <string name="label_hdr_bracket">HDR MULTI</string>
+    <string name="label_original">ORIGINAL</string>
+    <string name="label_enhanced">ENHANCED</string>
+    <string name="btn_save_enhanced">Save Enhanced</string>
+    <string name="btn_back">Back</string>
+    <string name="permission_camera_rationale">AstraCam requires direct hardware camera access to capture photographs.</string>
+    <string name="diagnostics_title">Device &amp; Camera Diagnostics</string>
+    <string name="status_processing">Enhancing image...</string>
+    <string name="status_ready">Ready</string>
+</resources>

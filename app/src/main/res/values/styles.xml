@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AstraCam" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="colorPrimary">@color/primary_accent</item>
+        <item name="colorSecondary">@color/primary_accent</item>
+        <item name="android:statusBarColor">@color/black</item>
+        <item name="android:navigationBarColor">@color/black</item>
+        <item name="android:windowBackground">@color/black</item>
+    </style>
+</resources>
