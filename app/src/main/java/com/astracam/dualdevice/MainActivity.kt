@@ -3,6 +3,8 @@ package com.astracam.dualdevice
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.view.OrientationEventListener
+import android.view.Surface
 import android.view.View
 import android.widget.ImageButton
 import android.widget.SeekBar
@@ -10,7 +12,6 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
 import androidx.camera.view.PreviewView
 import androidx.lifecycle.lifecycleScope
 import com.astracam.dualdevice.camera.CameraCaptureController
@@ -41,7 +42,10 @@ class MainActivity : AppCompatActivity() {
     private var isHdrEnabled: Boolean = false
     private var currentFlashMode: Int = ImageCapture.FLASH_MODE_OFF
 
-    // View References
+    // Hardware Orientation Listener
+    private var orientationEventListener: OrientationEventListener? = null
+
+    // Views
     private lateinit var viewFinder: PreviewView
     private lateinit var btnShutter: ImageButton
     private lateinit var btnSettings: ImageButton
@@ -57,7 +61,6 @@ class MainActivity : AppCompatActivity() {
 
         profile = DeviceProfileManager.getProfile(this)
 
-        // Select layout based on screen profile
         if (profile.isRoundScreen) {
             setContentView(R.layout.activity_main_watch)
         } else {
@@ -73,6 +76,7 @@ class MainActivity : AppCompatActivity() {
         hdrCoordinator = HdrCaptureCoordinator(captureController)
         processingPipeline = ImageProcessingPipeline(profile)
 
+        setupOrientationListener()
         setupListeners()
 
         if (permissionManager.hasAllPermissions()) {
@@ -80,6 +84,32 @@ class MainActivity : AppCompatActivity() {
         } else {
             permissionManager.requestPermissions()
         }
+    }
+
+    private fun setupOrientationListener() {
+        orientationEventListener = object : OrientationEventListener(this) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+
+                val rotation = when (orientation) {
+                    in 45..134 -> Surface.ROTATION_270
+                    in 135..224 -> Surface.ROTATION_180
+                    in 225..314 -> Surface.ROTATION_90
+                    else -> Surface.ROTATION_0
+                }
+                imageCapture?.targetRotation = rotation
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        orientationEventListener?.enable()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        orientationEventListener?.disable()
     }
 
     private fun bindViews() {
@@ -90,7 +120,6 @@ class MainActivity : AppCompatActivity() {
         btnSwitchCamera = findViewById(R.id.btnSwitchCamera)
         statusBanner = findViewById(R.id.statusBanner)
 
-        // Available only in phone layout
         btnFlash = findViewById(R.id.btnFlash)
         btnHdr = findViewById(R.id.btnHdr)
         exposureSeekBar = findViewById(R.id.exposureSeekBar)
@@ -98,18 +127,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         btnShutter.setOnClickListener {
-            if (!isCapturing) {
-                takePhoto()
-            }
+            if (!isCapturing) takePhoto()
         }
 
         btnSettings.setOnClickListener {
-            val intent = Intent(this, DiagnosticsActivity::class.java)
-            startActivity(intent)
+            startActivity(Intent(this, DiagnosticsActivity::class.java))
         }
 
         btnGallery.setOnClickListener {
-            Toast.makeText(this, "Reviewing latest captures", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Capture a photo to open editor", Toast.LENGTH_SHORT).show()
         }
 
         btnSwitchCamera.setOnClickListener {
@@ -137,7 +163,7 @@ class MainActivity : AppCompatActivity() {
 
         btnHdr?.setOnClickListener {
             if (!profile.enableMultiFrameHdr) {
-                Toast.makeText(this, "Multi-Frame HDR not supported on this profile", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "HDR Multi-frame not supported on this profile", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             isHdrEnabled = !isHdrEnabled
@@ -148,7 +174,7 @@ class MainActivity : AppCompatActivity() {
         exposureSeekBar?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(sb: SeekBar?, progress: Int, fromUser: Boolean) {
                 if (fromUser) {
-                    val evIndex = progress - 50 // -50 to +50 scaled steps
+                    val evIndex = progress - 50
                     cameraManager.setExposureCompensation(evIndex / 10)
                 }
             }
@@ -166,7 +192,7 @@ class MainActivity : AppCompatActivity() {
                 cameraManager.bindCamera(viewFinder, cap)
             },
             onError = { t ->
-                Toast.makeText(this, "Camera init error: ${t.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Camera error: ${t.message}", Toast.LENGTH_LONG).show()
             }
         )
     }
@@ -177,7 +203,6 @@ class MainActivity : AppCompatActivity() {
         showStatus(getString(R.string.status_processing))
 
         if (isHdrEnabled && profile.enableMultiFrameHdr) {
-            // Multi-Frame HDR Exposure Bracketing (-2 EV, 0 EV, +2 EV)
             lifecycleScope.launch {
                 try {
                     val bracketFiles = hdrCoordinator.captureExposureBracket(
@@ -198,7 +223,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         } else {
-            // Single Capture Workflow
             captureController.captureStandardPhoto(
                 cap,
                 onSuccess = { tempFile ->
