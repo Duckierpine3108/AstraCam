@@ -19,23 +19,13 @@ object GeminiAiEnhancer {
     private const val TAG = "AstraCam_Gemini"
     private const val PREFS_NAME = "astracam_ai_prefs"
     private const val KEY_GEMINI_API_KEY = "gemini_api_key"
-    private const val KEY_WORKING_MODEL = "cached_working_model"
 
-    // Multi-model auto-fallback cascade
-    private val CANDIDATE_MODELS = listOf(
-        "gemini-2.0-flash",
-        "gemini-2.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-flash",
-        "gemini-flash-latest"
-    )
-
-    // Master Universal Prompt for all photos
-    private const val UNIVERSAL_MASTER_PROMPT = """
-You are an expert computational photography director and DSLR post-processing engine.
-Analyze this photograph comprehensively: lighting balance, dynamic range, shadow depth, specular highlights, color temperature, and micro-contrast.
+    // One master prompt compatible with all scenes
+    private const val MASTER_PROMPT = """
+You are an expert DSLR colorist and computational photography engine.
+Analyze this photo: lighting, dynamic range, shadows, specular highlights, color temperature, and micro-contrast.
 Whether this image is a portrait, landscape, low-light shot, or computer monitor screen, calculate the optimal tuning parameters to produce a natural, edge-clean, cinematic DSLR result.
-Output ONLY a raw, valid JSON object with these exact keys:
+Output ONLY a raw JSON object with these exact keys:
 {
   "exposure": <Float between -30.0 and +30.0>,
   "shadows": <Float between 0.0 and 70.0>,
@@ -64,9 +54,13 @@ Output NO explanation, NO markdown code blocks, ONLY the raw JSON object.
         bitmap: Bitmap
     ): DslrTuningParameters = withContext(Dispatchers.IO) {
         val apiKey = getSavedApiKey(context)
-            ?: throw IllegalStateException("Gemini API key not configured. Tap '✨ Gemini AI'.")
+            ?: throw IllegalStateException("Gemini API key is missing. Please enter your API Key.")
 
-        // Downscale image to 512px for low-latency transmission
+        // 1. Resolve available models for this specific API key
+        val targetModel = discoverWorkingModel(apiKey)
+        Log.i(TAG, "Selected active model: $targetModel")
+
+        // 2. Downscale thumbnail to 512px for low-latency transmission
         val scale = 512f / max(bitmap.width, bitmap.height)
         val scaled = Bitmap.createScaledBitmap(
             bitmap,
@@ -76,53 +70,28 @@ Output NO explanation, NO markdown code blocks, ONLY the raw JSON object.
         )
 
         val outputStream = ByteArrayOutputStream()
-        scaled.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
+        scaled.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
         val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
 
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val cachedModel = prefs.getString(KEY_WORKING_MODEL, null)
-
-        val modelsToTry = mutableListOf<String>()
-        if (!cachedModel.isNullOrEmpty()) modelsToTry.add(cachedModel)
-        for (m in CANDIDATE_MODELS) {
-            if (!modelsToTry.contains(m)) modelsToTry.add(m)
-        }
-
-        var lastError = ""
-
-        for (model in modelsToTry) {
-            try {
-                val result = callGeminiEndpoint(model, apiKey, base64Image)
-                // Cache successful model
-                prefs.edit().putString(KEY_WORKING_MODEL, model).apply()
-                return@withContext result
-            } catch (e: Exception) {
-                lastError = e.message ?: "Unknown error"
-                Log.w(TAG, "Model $model failed: $lastError. Trying next candidate...")
-            }
-        }
-
-        throw IllegalStateException("AI Analysis failed: $lastError")
-    }
-
-    private fun callGeminiEndpoint(model: String, apiKey: String, base64Image: String): DslrTuningParameters {
-        val endpointUrl = "https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$apiKey"
+        // 3. Make generateContent request
+        val endpointUrl = "https://generativelanguage.googleapis.com/v1beta/$targetModel:generateContent?key=$apiKey"
         val conn = (URL(endpointUrl).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             setRequestProperty("Content-Type", "application/json")
             doOutput = true
-            connectTimeout = 14000
-            readTimeout = 14000
+            connectTimeout = 15000
+            readTimeout = 15000
         }
 
+        // Compliant JSON using camelCase inlineData & mimeType
         val requestBody = JSONObject().apply {
             put("contents", JSONArray().apply {
                 put(JSONObject().apply {
                     put("parts", JSONArray().apply {
-                        put(JSONObject().apply { put("text", UNIVERSAL_MASTER_PROMPT.trim()) })
+                        put(JSONObject().apply { put("text", MASTER_PROMPT.trim()) })
                         put(JSONObject().apply {
-                            put("inline_data", JSONObject().apply {
-                                put("mime_type", "image/jpeg")
+                            put("inlineData", JSONObject().apply {
+                                put("mimeType", "image/jpeg")
                                 put("data", base64Image)
                             })
                         })
@@ -136,7 +105,9 @@ Output NO explanation, NO markdown code blocks, ONLY the raw JSON object.
         val code = conn.responseCode
         if (code != 200) {
             val errorResponse = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-            throw IllegalStateException("HTTP $code: $errorResponse")
+            Log.e(TAG, "generateContent failed ($code): $errorResponse")
+            val readableMessage = parseGoogleErrorMessage(errorResponse, code)
+            throw IllegalStateException(readableMessage)
         }
 
         val responseText = conn.inputStream.bufferedReader().use { it.readText() }
@@ -152,7 +123,7 @@ Output NO explanation, NO markdown code blocks, ONLY the raw JSON object.
         val clean = rawText.substringAfter("{").substringBeforeLast("}")
         val recipe = JSONObject("{$clean}")
 
-        return DslrTuningParameters(
+        return@withContext DslrTuningParameters(
             exposure = recipe.optDouble("exposure", 0.0).toFloat().coerceIn(-40f, 40f),
             shadows = recipe.optDouble("shadows", 35.0).toFloat().coerceIn(0f, 75f),
             highlights = recipe.optDouble("highlights", 25.0).toFloat().coerceIn(0f, 70f),
@@ -162,5 +133,62 @@ Output NO explanation, NO markdown code blocks, ONLY the raw JSON object.
             temperature = recipe.optDouble("temperature", 0.0).toFloat().coerceIn(-25f, 25f),
             sharpness = recipe.optDouble("sharpness", 35.0).toFloat().coerceIn(0f, 60f)
         )
+    }
+
+    /**
+     * Queries Google to find the active model enabled on your API key
+     */
+    private fun discoverWorkingModel(apiKey: String): String {
+        val listUrl = "https://generativelanguage.googleapis.com/v1beta/models?key=$apiKey"
+        val conn = (URL(listUrl).openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 8000
+            readTimeout = 8000
+        }
+
+        val code = conn.responseCode
+        if (code != 200) {
+            val errorResponse = conn.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+            val readableMessage = parseGoogleErrorMessage(errorResponse, code)
+            throw IllegalStateException("API Key Error: $readableMessage")
+        }
+
+        val responseText = conn.inputStream.bufferedReader().use { it.readText() }
+        val json = JSONObject(responseText)
+        val models = json.optJSONArray("models") ?: JSONArray()
+
+        val supported = mutableListOf<String>()
+        for (i in 0 until models.length()) {
+            val m = models.getJSONObject(i)
+            val name = m.getString("name") // e.g. "models/gemini-2.0-flash" or "models/gemini-1.5-flash"
+            val methods = m.optJSONArray("supportedGenerationMethods") ?: JSONArray()
+
+            var canGenerate = false
+            for (j in 0 until methods.length()) {
+                if (methods.getString(j) == "generateContent") canGenerate = true
+            }
+
+            if (canGenerate) supported.add(name)
+        }
+
+        // Pick optimal flash model, or first compatible model
+        val chosen = supported.firstOrNull { it.contains("flash", ignoreCase = true) }
+            ?: supported.firstOrNull()
+            ?: "models/gemini-1.5-flash"
+
+        return chosen
+    }
+
+    private fun parseGoogleErrorMessage(errorJson: String, httpCode: Int): String {
+        return try {
+            val obj = JSONObject(errorJson)
+            val errorObj = obj.optJSONObject("error")
+            val msg = errorObj?.optString("message")
+            val status = errorObj?.optString("status")
+            if (!msg.isNullOrEmpty()) "$status ($httpCode): $msg"
+            else "HTTP $httpCode: $errorJson"
+        } catch (e: Exception) {
+            "HTTP $httpCode: Check API key permissions and internet connection."
+        }
     }
 }

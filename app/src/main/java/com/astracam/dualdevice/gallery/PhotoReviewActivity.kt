@@ -4,6 +4,7 @@ import android.app.AlertDialog
 import android.graphics.Bitmap
 import android.os.Bundle
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
 import android.widget.SeekBar
 import android.widget.Toast
@@ -16,9 +17,12 @@ import com.astracam.dualdevice.processing.DslrImageProcessor
 import com.astracam.dualdevice.processing.DslrTuningParameters
 import com.astracam.dualdevice.storage.ExifMetadataHandler
 import com.astracam.dualdevice.storage.PhotoRepository
+import com.astracam.dualdevice.ui.FastBlur
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 class PhotoReviewActivity : AppCompatActivity() {
@@ -54,12 +58,14 @@ class PhotoReviewActivity : AppCompatActivity() {
                 profile.maxProcessingDimension
             )
             binding.imagePreview.setImageBitmap(baseUprightBitmap)
+            generateFrostedGlassBackdrop(baseUprightBitmap!!)
         } catch (e: Exception) {
             Toast.makeText(this, "Decode error: ${e.message}", Toast.LENGTH_SHORT).show()
             finish()
             return
         }
 
+        animateUiEntrance()
         triggerRender()
 
         binding.toggleComparison.setOnCheckedChangeListener { _, checkedId ->
@@ -91,6 +97,30 @@ class PhotoReviewActivity : AppCompatActivity() {
         }
 
         binding.btnBack.setOnClickListener { finish() }
+    }
+
+    private fun animateUiEntrance() {
+        binding.editorContainer.translationY = 300f
+        binding.editorContainer.alpha = 0f
+        binding.editorContainer.animate()
+            .translationY(0f)
+            .alpha(1f)
+            .setDuration(450)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+    }
+
+    private fun generateFrostedGlassBackdrop(bitmap: Bitmap) {
+        lifecycleScope.launch(Dispatchers.Default) {
+            try {
+                // Downscale to 120px for high-speed blur computation
+                val small = Bitmap.createScaledBitmap(bitmap, 120, 120, false)
+                val blurred = FastBlur.blur(small, 18)
+                withContext(Dispatchers.Main) {
+                    binding.glassBackdropBlur.setImageBitmap(blurred)
+                }
+            } catch (ignored: Exception) {}
+        }
     }
 
     private fun setupSliders() {
@@ -226,7 +256,6 @@ class PhotoReviewActivity : AppCompatActivity() {
     private fun executeGeminiEnhance() {
         val base = baseUprightBitmap ?: return
 
-        // Launch Futuristic Scanning Laser Animation
         binding.aiScanOverlay.startScanning()
         binding.aiStatusBadge.visibility = View.VISIBLE
 
@@ -252,7 +281,13 @@ class PhotoReviewActivity : AppCompatActivity() {
                 triggerRender()
                 Toast.makeText(this@PhotoReviewActivity, "✨ Gemini AI Optimization Applied!", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
-                Toast.makeText(this@PhotoReviewActivity, e.message ?: "AI error", Toast.LENGTH_LONG).show()
+                // Display the exact diagnostic explanation in a dialog
+                AlertDialog.Builder(this@PhotoReviewActivity)
+                    .setTitle("Gemini AI Diagnostic")
+                    .setMessage(e.message ?: "Unknown communication error.")
+                    .setPositiveButton("Change Key") { _, _ -> showApiKeyInputDialog() }
+                    .setNegativeButton("OK", null)
+                    .show()
             } finally {
                 binding.aiScanOverlay.stopScanning()
                 binding.aiStatusBadge.visibility = View.GONE
