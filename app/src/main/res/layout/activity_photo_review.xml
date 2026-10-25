@@ -5,6 +5,7 @@
     android:layout_height="match_parent"
     android:background="@color/black">
 
+    <!-- Viewfinder Picture Display -->
     <ImageView
         android:id="@+id/imagePreview"
         android:layout_width="0dp"
@@ -15,6 +16,38 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- AI Futuristic Laser Scan Overlay -->
+    <com.astracam.dualdevice.ui.AiScanOverlayView
+        android:id="@+id/aiScanOverlay"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/editorScrollPanel"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+    <!-- Floating AI Status Badge -->
+    <TextView
+        android:id="@+id/aiStatusBadge"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:background="@drawable/bg_glass_chip"
+        android:elevation="8dp"
+        android:paddingStart="16dp"
+        android:paddingTop="8dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp"
+        android:text="✨ Gemini AI Neural Vision Active..."
+        android:textColor="@color/primary_accent"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/editorScrollPanel"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
     <ProgressBar
         android:id="@+id/processingIndicator"
@@ -27,12 +60,13 @@
         app:layout_constraintStart_toStartOf="@id/imagePreview"
         app:layout_constraintTop_toTopOf="@id/imagePreview" />
 
-    <!-- Scrollable Manual Control Panel -->
+    <!-- Translucent Frosted Glass Controls Panel -->
     <ScrollView
         android:id="@+id/editorScrollPanel"
         android:layout_width="0dp"
-        android:layout_height="280dp"
-        android:background="@color/surface_dark"
+        android:layout_height="270dp"
+        android:background="@drawable/bg_glass_panel"
+        android:elevation="12dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent">
@@ -41,9 +75,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="12dp">
+            android:padding="16dp">
 
-            <!-- Comparison and AI Action Row -->
+            <!-- Top Row: Radio Comparison & AI Trigger Button -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -70,7 +104,7 @@
                         android:id="@+id/rbEnhanced"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
+                        android:layout_marginStart="14dp"
                         android:checked="true"
                         android:text="@string/label_enhanced"
                         android:textColor="@color/primary_accent"
@@ -79,22 +113,22 @@
 
                 <Button
                     android:id="@+id/btnGeminiAi"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                     android:layout_width="wrap_content"
-                    android:layout_height="36dp"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
-                    android:text="✨ Gemini AI"
+                    android:layout_height="38dp"
+                    android:background="@drawable/bg_glass_chip"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:text="✨ GEMINI AI"
                     android:textColor="@color/primary_accent"
                     android:textSize="11sp"
-                    app:strokeColor="@color/primary_accent" />
+                    android:textStyle="bold" />
             </LinearLayout>
 
             <!-- Presets Row -->
             <HorizontalScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
+                android:layout_marginTop="10dp"
                 android:scrollbars="none">
 
                 <LinearLayout
@@ -106,8 +140,8 @@
                         android:id="@+id/presetNatural"
                         style="@style/Widget.MaterialComponents.Button.TextButton"
                         android:layout_width="wrap_content"
-                        android:layout_height="34dp"
-                        android:text="Natural"
+                        android:layout_height="32dp"
+                        android:text="NATURAL"
                         android:textColor="@color/white"
                         android:textSize="11sp" />
 
@@ -115,7 +149,7 @@
                         android:id="@+id/presetHdr"
                         style="@style/Widget.MaterialComponents.Button.TextButton"
                         android:layout_width="wrap_content"
-                        android:layout_height="34dp"
+                        android:layout_height="32dp"
                         android:text="DSLR HDR"
                         android:textColor="@color/badge_hdr"
                         android:textSize="11sp" />
@@ -124,17 +158,17 @@
                         android:id="@+id/presetVivid"
                         style="@style/Widget.MaterialComponents.Button.TextButton"
                         android:layout_width="wrap_content"
-                        android:layout_height="34dp"
-                        android:text="Vivid"
+                        android:layout_height="32dp"
+                        android:text="VIVID"
                         android:textColor="@color/primary_accent"
                         android:textSize="11sp" />
 
                     <Button
-                        android:id="@+id/presetLowLight"
+                        android:id="@+id/presetNightClean"
                         style="@style/Widget.MaterialComponents.Button.TextButton"
                         android:layout_width="wrap_content"
-                        android:layout_height="34dp"
-                        android:text="Night Clean"
+                        android:layout_height="32dp"
+                        android:text="NIGHT CLEAN"
                         android:textColor="@color/white"
                         android:textSize="11sp" />
                 </LinearLayout>
@@ -145,9 +179,9 @@
                 android:id="@+id/lblShadows"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
+                android:layout_marginTop="8dp"
                 android:text="Shadow Recovery: 35%"
-                android:textColor="@color/text_secondary"
+                android:textColor="@color/white"
                 android:textSize="11sp" />
 
             <SeekBar
@@ -165,7 +199,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="Highlight Compression: 25%"
-                android:textColor="@color/text_secondary"
+                android:textColor="@color/white"
                 android:textSize="11sp" />
 
             <SeekBar
@@ -183,7 +217,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="Clarity / Micro-Contrast: 25%"
-                android:textColor="@color/text_secondary"
+                android:textColor="@color/white"
                 android:textSize="11sp" />
 
             <SeekBar
@@ -201,7 +235,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="Color Temperature: Neutral (0)"
-                android:textColor="@color/text_secondary"
+                android:textColor="@color/white"
                 android:textSize="11sp" />
 
             <SeekBar
@@ -218,8 +252,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:text="Edge Sharpness: 40%"
-                android:textColor="@color/text_secondary"
+                android:text="Edge Sharpness: 35%"
+                android:textColor="@color/white"
                 android:textSize="11sp" />
 
             <SeekBar
@@ -227,36 +261,37 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:max="100"
-                android:progress="40"
+                android:progress="35"
                 android:progressTint="@color/primary_accent"
                 android:thumbTint="@color/primary_accent" />
 
-            <!-- Action Buttons -->
+            <!-- Bottom Actions -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
+                android:layout_marginTop="14dp"
                 android:orientation="horizontal">
 
                 <Button
                     android:id="@+id/btnBack"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="44dp"
                     android:layout_marginEnd="8dp"
                     android:layout_weight="1"
-                    android:backgroundTint="@color/card_bg"
+                    android:backgroundTint="#33FFFFFF"
                     android:text="@string/btn_back"
                     android:textColor="@color/white" />
 
                 <Button
                     android:id="@+id/btnSave"
                     android:layout_width="0dp"
-                    android:layout_height="wrap_content"
+                    android:layout_height="44dp"
                     android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:backgroundTint="@color/primary_accent"
                     android:text="@string/btn_save_enhanced"
-                    android:textColor="@color/black" />
+                    android:textColor="@color/black"
+                    android:textStyle="bold" />
             </LinearLayout>
 
         </LinearLayout>

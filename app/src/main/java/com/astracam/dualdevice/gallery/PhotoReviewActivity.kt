@@ -9,7 +9,6 @@ import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.astracam.dualdevice.R
 import com.astracam.dualdevice.ai.GeminiAiEnhancer
 import com.astracam.dualdevice.databinding.ActivityPhotoReviewBinding
 import com.astracam.dualdevice.device.DeviceProfileManager
@@ -49,7 +48,6 @@ class PhotoReviewActivity : AppCompatActivity() {
         val profile = DeviceProfileManager.getProfile(this)
         val repo = PhotoRepository(this)
 
-        // Load properly oriented bitmap
         try {
             baseUprightBitmap = ExifMetadataHandler.loadOrientedBitmap(
                 originalFile!!,
@@ -62,10 +60,8 @@ class PhotoReviewActivity : AppCompatActivity() {
             return
         }
 
-        // Apply default DSLR processing pass
         triggerRender()
 
-        // Toggle Original vs Enhanced
         binding.toggleComparison.setOnCheckedChangeListener { _, checkedId ->
             if (checkedId == binding.rbOriginal.id) {
                 binding.imagePreview.setImageBitmap(baseUprightBitmap)
@@ -74,13 +70,9 @@ class PhotoReviewActivity : AppCompatActivity() {
             }
         }
 
-        // Manual Sliders
         setupSliders()
-
-        // Presets
         setupPresets()
 
-        // Gemini AI Integration
         binding.btnGeminiAi.setOnClickListener {
             val key = GeminiAiEnhancer.getSavedApiKey(this)
             if (key.isNullOrEmpty()) {
@@ -90,7 +82,6 @@ class PhotoReviewActivity : AppCompatActivity() {
             }
         }
 
-        // Save Enhanced Photo
         binding.btnSave.setOnClickListener {
             currentEnhancedBitmap?.let { bmp ->
                 val saved = repo.saveEnhancedBitmap(bmp, originalFile)
@@ -157,16 +148,16 @@ class PhotoReviewActivity : AppCompatActivity() {
 
     private fun setupPresets() {
         binding.presetNatural.setOnClickListener {
-            applyPreset(shadows = 20f, highlights = 15f, clarity = 15f, temp = 0f, sharpness = 25f)
+            applyPreset(shadows = 20f, highlights = 15f, clarity = 15f, temp = 0f, sharpness = 20f)
         }
         binding.presetHdr.setOnClickListener {
-            applyPreset(shadows = 55f, highlights = 45f, clarity = 40f, temp = 5f, sharpness = 45f)
+            applyPreset(shadows = 50f, highlights = 40f, clarity = 35f, temp = 4f, sharpness = 35f)
         }
         binding.presetVivid.setOnClickListener {
-            applyPreset(shadows = 35f, highlights = 25f, clarity = 35f, temp = 10f, sharpness = 50f)
+            applyPreset(shadows = 30f, highlights = 25f, clarity = 30f, temp = 8f, sharpness = 40f)
         }
-        binding.presetLowLight.setOnClickListener {
-            applyPreset(shadows = 50f, highlights = 30f, clarity = 20f, temp = -5f, sharpness = 20f)
+        binding.presetNightClean.setOnClickListener {
+            applyPreset(shadows = 45f, highlights = 25f, clarity = 20f, temp = -4f, sharpness = 20f)
         }
     }
 
@@ -189,7 +180,7 @@ class PhotoReviewActivity : AppCompatActivity() {
     private fun debouncedRender() {
         renderJob?.cancel()
         renderJob = lifecycleScope.launch {
-            delay(120) // Smooth debouncing
+            delay(100)
             triggerRender()
         }
     }
@@ -205,7 +196,7 @@ class PhotoReviewActivity : AppCompatActivity() {
                     binding.imagePreview.setImageBitmap(processed)
                 }
             } catch (t: Throwable) {
-                Toast.makeText(this@PhotoReviewActivity, "Processing error: ${t.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this@PhotoReviewActivity, "Render error: ${t.message}", Toast.LENGTH_SHORT).show()
             } finally {
                 binding.processingIndicator.visibility = View.GONE
             }
@@ -219,7 +210,7 @@ class PhotoReviewActivity : AppCompatActivity() {
         }
         AlertDialog.Builder(this)
             .setTitle("Enter Gemini API Key")
-            .setMessage("Get a free key from Google AI Studio. Your key will be saved securely on your device.")
+            .setMessage("Paste your key from Google AI Studio. It will be saved securely on your device.")
             .setView(input)
             .setPositiveButton("Save & Run") { _, _ ->
                 val entered = input.text.toString().trim()
@@ -234,12 +225,15 @@ class PhotoReviewActivity : AppCompatActivity() {
 
     private fun executeGeminiEnhance() {
         val base = baseUprightBitmap ?: return
-        binding.processingIndicator.visibility = View.VISIBLE
-        Toast.makeText(this, "Analyzing scene with Gemini AI...", Toast.LENGTH_SHORT).show()
+
+        // Launch Futuristic Scanning Laser Animation
+        binding.aiScanOverlay.startScanning()
+        binding.aiStatusBadge.visibility = View.VISIBLE
 
         lifecycleScope.launch {
             try {
                 val aiParams = GeminiAiEnhancer.analyzeAndOptimize(this@PhotoReviewActivity, base)
+
                 tuningParams.exposure = aiParams.exposure
                 tuningParams.shadows = aiParams.shadows
                 tuningParams.highlights = aiParams.highlights
@@ -249,7 +243,6 @@ class PhotoReviewActivity : AppCompatActivity() {
                 tuningParams.temperature = aiParams.temperature
                 tuningParams.sharpness = aiParams.sharpness
 
-                // Update UI sliders to mirror AI parameters
                 binding.sbShadows.progress = aiParams.shadows.toInt()
                 binding.sbHighlights.progress = aiParams.highlights.toInt()
                 binding.sbClarity.progress = aiParams.clarity.toInt()
@@ -261,7 +254,8 @@ class PhotoReviewActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 Toast.makeText(this@PhotoReviewActivity, e.message ?: "AI error", Toast.LENGTH_LONG).show()
             } finally {
-                binding.processingIndicator.visibility = View.GONE
+                binding.aiScanOverlay.stopScanning()
+                binding.aiStatusBadge.visibility = View.GONE
             }
         }
     }

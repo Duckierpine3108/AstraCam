@@ -2,8 +2,6 @@ package com.astracam.dualdevice.processing
 
 import android.graphics.Bitmap
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.pow
 
 data class DslrTuningParameters(
@@ -14,7 +12,7 @@ data class DslrTuningParameters(
     var clarity: Float = 25.0f,       // 0.0 to 100.0 (micro-contrast)
     var saturation: Float = 15.0f,    // -50.0 to +50.0
     var temperature: Float = 0.0f,    // -50.0 to +50.0 (cool to warm)
-    var sharpness: Float = 40.0f      // 0.0 to 100.0
+    var sharpness: Float = 35.0f      // 0.0 to 100.0
 )
 
 class DslrImageProcessor {
@@ -28,40 +26,38 @@ class DslrImageProcessor {
         val outPixels = IntArray(width * height)
         source.getPixels(inPixels, 0, width, 0, 0, width, height)
 
-        // 1. Build Precomputed 256-Tone S-Curve Mapping LUT
-        val lut = IntArray(256)
-        val expMultiplier = (1.0f + params.exposure / 50.0f).coerceIn(0.5f, 2.0f)
-        val shadowLift = (params.shadows / 100.0f).coerceIn(0.0f, 1.0f)
-        val highCompress = (params.highlights / 100.0f).coerceIn(0.0f, 1.0f)
-        val contrastFactor = (1.0f + params.contrast / 100.0f).coerceIn(0.5f, 1.8f)
+        // 1. Build Smooth Continuous Luminance S-Curve LUT
+        val lut = FloatArray(256)
+        val expMultiplier = (1.0f + params.exposure / 60.0f).coerceIn(0.4f, 2.2f)
+        val shadowLift = (params.shadows / 100.0f).coerceIn(0.0f, 1.0f) * 0.45f
+        val highCompress = (params.highlights / 100.0f).coerceIn(0.0f, 1.0f) * 0.40f
+        val contrastFactor = (1.0f + params.contrast / 100.0f).coerceIn(0.5f, 1.6f)
 
         for (i in 0..255) {
             var v = (i / 255.0f) * expMultiplier
 
-            // Non-linear shadow boost
-            v += shadowLift * (1.0f - v.coerceIn(0.0f, 1.0f)).pow(2.0f) * v
+            // Quadratic smooth shadow lift
+            v += shadowLift * (1.0f - v.coerceIn(0f, 1f)).pow(2.0f) * v
 
-            // Highlight recovery curve
-            if (v > 0.60f && highCompress > 0f) {
-                val excess = (v - 0.60f) / 0.40f
-                v = 0.60f + 0.40f * (1.0f - (1.0f - excess.coerceIn(0.0f, 1.0f)).pow(1.0f + highCompress * 1.5f))
+            // Smooth highlight compression
+            if (v > 0.55f && highCompress > 0f) {
+                val excess = (v - 0.55f) / 0.45f
+                v = 0.55f + 0.45f * (1.0f - (1.0f - excess.coerceIn(0f, 1f)).pow(1.0f + highCompress * 2.0f))
             }
 
-            // DSLR Contrast Sigmoid
+            // Smooth sigmoid contrast centered at midpoint
             v = ((v - 0.5f) * contrastFactor + 0.5f).coerceIn(0.0f, 1.0f)
-            lut[i] = (v * 255.0f).toInt().coerceIn(0, 255)
+            lut[i] = v * 255.0f
         }
 
-        // 2. Temperature Multipliers
+        // Temperature adjustments
         val tempNorm = params.temperature / 100.0f
-        val redGain = if (tempNorm > 0) 1.0f + tempNorm * 0.35f else 1.0f
-        val blueGain = if (tempNorm < 0) 1.0f - tempNorm * 0.35f else 1.0f
+        val redGain = if (tempNorm > 0) 1.0f + tempNorm * 0.25f else 1.0f
+        val blueGain = if (tempNorm < 0) 1.0f - tempNorm * 0.25f else 1.0f
 
-        // 3. Clarity & Tone Pass
-        val clarityRadius = 1
-        val clarityStrength = (params.clarity / 100.0f) * 0.35f
         val satFactor = 1.0f + (params.saturation / 100.0f)
-        val sharpStrength = (params.sharpness / 100.0f) * 0.60f
+        val sharpStrength = (params.sharpness / 100.0f) * 0.45f
+        val clarityStrength = (params.clarity / 100.0f) * 0.35f
 
         for (y in 0 until height) {
             for (x in 0 until width) {
@@ -72,53 +68,58 @@ class DslrImageProcessor {
                 var g = (p ushr 8) and 0xFF
                 var b = p and 0xFF
 
-                // Apply tone curve
-                r = lut[r]
-                g = lut[g]
-                b = lut[b]
+                // Compute exact perceived luminance
+                val lum = 0.299f * r + 0.587f * g + 0.114f * b
+                val targetLum = lut[lum.toInt().coerceIn(0, 255)]
 
-                // Temperature
-                r = (r * redGain).toInt().coerceIn(0, 255)
-                b = (b * blueGain).toInt().coerceIn(0, 255)
+                // Proportional Luminance Scaling (preserves true chrominance, zero tearing)
+                val lumScale = if (lum > 1e-3f) targetLum / lum else 1.0f
+                var fR = (r * lumScale * redGain).coerceIn(0f, 255f)
+                var fG = (g * lumScale).coerceIn(0f, 255f)
+                var fB = (b * lumScale * blueGain).coerceIn(0f, 255f)
 
-                // Saturation
-                val maxC = max(r, max(g, b))
-                val minC = min(r, min(g, b))
-                val lum = (0.299f * r + 0.587f * g + 0.114f * b)
-                if (maxC > 0) {
-                    r = (lum + (r - lum) * satFactor).toInt().coerceIn(0, 255)
-                    g = (lum + (g - lum) * satFactor).toInt().coerceIn(0, 255)
-                    b = (lum + (b - lum) * satFactor).toInt().coerceIn(0, 255)
+                // Vibrance/Saturation
+                val newLum = 0.299f * fR + 0.587f * fG + 0.114f * fB
+                fR = (newLum + (fR - newLum) * satFactor).coerceIn(0f, 255f)
+                fG = (newLum + (fG - newLum) * satFactor).coerceIn(0f, 255f)
+                fB = (newLum + (fB - newLum) * satFactor).coerceIn(0f, 255f)
+
+                // Soft-Cored Luminance Sharpening (zero halo, zero color artifacting)
+                if ((sharpStrength > 0.02f || clarityStrength > 0.02f) &&
+                    x > 0 && x < width - 1 && y > 0 && y < height - 1
+                ) {
+                    val lumLeft = getLuminance(inPixels[idx - 1])
+                    val lumRight = getLuminance(inPixels[idx + 1])
+                    val lumUp = getLuminance(inPixels[idx - width])
+                    val lumDown = getLuminance(inPixels[idx + width])
+                    val avgNeighborLum = (lumLeft + lumRight + lumUp + lumDown) * 0.25f
+
+                    val lumDiff = lum - avgNeighborLum
+                    val absDiff = abs(lumDiff)
+
+                    // Continuous soft coring: noise (<3) is ignored, textures are boosted smoothly
+                    if (absDiff > 3.0f) {
+                        val smoothWeight = (absDiff - 3.0f) / (absDiff + 12.0f)
+                        val totalBoost = (lumDiff * (sharpStrength + clarityStrength) * smoothWeight).coerceIn(-30f, 30f)
+
+                        fR = (fR + totalBoost).coerceIn(0f, 255f)
+                        fG = (fG + totalBoost).coerceIn(0f, 255f)
+                        fB = (fB + totalBoost).coerceIn(0f, 255f)
+                    }
                 }
 
-                // Clarity / Unsharp Sharpening
-                if (sharpStrength > 0.05f && x > 0 && x < width - 1 && y > 0 && y < height - 1) {
-                    val pLeft = inPixels[idx - 1]
-                    val pRight = inPixels[idx + 1]
-                    val pUp = inPixels[idx - width]
-                    val pDown = inPixels[idx + width]
-
-                    val avgR = ((pLeft ushr 16 and 0xFF) + (pRight ushr 16 and 0xFF) +
-                            (pUp ushr 16 and 0xFF) + (pDown ushr 16 and 0xFF)) shr 2
-                    val avgG = ((pLeft ushr 8 and 0xFF) + (pRight ushr 8 and 0xFF) +
-                            (pUp ushr 8 and 0xFF) + (pDown ushr 8 and 0xFF)) shr 2
-                    val avgB = ((pLeft and 0xFF) + (pRight and 0xFF) +
-                            (pUp and 0xFF) + (pDown and 0xFF)) shr 2
-
-                    val diffR = r - avgR
-                    val diffG = g - avgG
-                    val diffB = b - avgB
-
-                    if (abs(diffR) in 4..50) r = (r + diffR * sharpStrength).toInt().coerceIn(0, 255)
-                    if (abs(diffG) in 4..50) g = (g + diffG * sharpStrength).toInt().coerceIn(0, 255)
-                    if (abs(diffB) in 4..50) b = (b + diffB * sharpStrength).toInt().coerceIn(0, 255)
-                }
-
-                outPixels[idx] = (a shl 24) or (r shl 16) or (g shl 8) or b
+                outPixels[idx] = (a shl 24) or (fR.toInt() shl 16) or (fG.toInt() shl 8) or fB.toInt()
             }
         }
 
         output.setPixels(outPixels, 0, width, 0, 0, width, height)
         return output
+    }
+
+    private inline fun getLuminance(color: Int): Float {
+        val r = (color ushr 16) and 0xFF
+        val g = (color ushr 8) and 0xFF
+        val b = color and 0xFF
+        return 0.299f * r + 0.587f * g + 0.114f * b
     }
 }
