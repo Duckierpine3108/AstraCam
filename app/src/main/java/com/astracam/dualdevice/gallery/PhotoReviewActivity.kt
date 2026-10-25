@@ -113,11 +113,18 @@ class PhotoReviewActivity : AppCompatActivity() {
     private fun generateFrostedGlassBackdrop(bitmap: Bitmap) {
         lifecycleScope.launch(Dispatchers.Default) {
             try {
-                // Downscale to 120px for high-speed blur computation
-                val small = Bitmap.createScaledBitmap(bitmap, 120, 120, false)
-                val blurred = FastBlur.blur(small, 18)
+                // Crop bottom 40% slice corresponding to the editor position
+                val cropY = (bitmap.height * 0.60f).toInt()
+                val cropH = (bitmap.height * 0.40f).toInt()
+                val bottomSlice = Bitmap.createBitmap(bitmap, 0, cropY, bitmap.width, cropH)
+
+                // Scale to 160px for quick blur rendering
+                val scaled = Bitmap.createScaledBitmap(bottomSlice, 160, 100, false)
+                val blurred = FastBlur.blur(scaled, 16)
+
                 withContext(Dispatchers.Main) {
                     binding.glassBackdropBlur.setImageBitmap(blurred)
+                    binding.glassBackdropBlur.alpha = 0.95f
                 }
             } catch (ignored: Exception) {}
         }
