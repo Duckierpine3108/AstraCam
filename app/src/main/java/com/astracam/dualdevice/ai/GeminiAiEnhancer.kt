@@ -26,7 +26,7 @@ object GeminiAiEnhancer {
     private const val PREFS_NAME = "astracam_ai_prefs"
     private const val KEY_GEMINI_API_KEY = "gemini_api_key"
 
-    // Primary target model: Nano Banana 2
+    // Primary Nano Banana 2 target models
     private const val PRIMARY_MODEL = "gemini-3.1-flash-image"
     private const val FALLBACK_MODEL = "gemini-3.1-flash-image-preview"
 
@@ -63,7 +63,6 @@ Output either the edited image directly or output ONLY a raw JSON object with tu
         val apiKey = getSavedApiKey(context)
             ?: throw IllegalStateException("Gemini API key is missing. Please enter your API Key.")
 
-        // Downscale to 512px for rapid transmission
         val scale = 512f / max(bitmap.width, bitmap.height)
         val scaled = Bitmap.createScaledBitmap(
             bitmap,
@@ -76,7 +75,6 @@ Output either the edited image directly or output ONLY a raw JSON object with tu
         scaled.compress(Bitmap.CompressFormat.JPEG, 80, outputStream)
         val base64Image = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
 
-        // Try primary model first, then fallback preview
         return@withContext try {
             callNanoBananaEndpoint(PRIMARY_MODEL, apiKey, base64Image)
         } catch (e: Exception) {
@@ -99,7 +97,6 @@ Output either the edited image directly or output ONLY a raw JSON object with tu
             readTimeout = 16000
         }
 
-        // Configure request body with Nano Banana 2 dual modalities (IMAGE & TEXT)
         val requestBody = JSONObject().apply {
             put("contents", JSONArray().apply {
                 put(JSONObject().apply {
@@ -140,7 +137,7 @@ Output either the edited image directly or output ONLY a raw JSON object with tu
             .getJSONObject("content")
             .getJSONArray("parts")
 
-        // 1. Check if Nano Banana 2 generated an edited image directly
+        // Check if an enhanced image was returned directly
         for (i in 0 until parts.length()) {
             val part = parts.getJSONObject(i)
             if (part.has("inlineData")) {
@@ -154,7 +151,7 @@ Output either the edited image directly or output ONLY a raw JSON object with tu
             }
         }
 
-        // 2. Otherwise parse tuning JSON
+        // Fallback: parse tuning JSON parameters
         val rawText = parts.getJSONObject(0).optString("text", "{}")
         val clean = rawText.substringAfter("{").substringBeforeLast("}")
         val recipe = JSONObject("{$clean}")
