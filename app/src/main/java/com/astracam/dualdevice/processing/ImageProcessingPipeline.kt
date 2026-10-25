@@ -6,6 +6,7 @@ import android.graphics.Matrix
 import android.util.Log
 import com.astracam.dualdevice.device.DeviceProfile
 import com.astracam.dualdevice.device.DeviceProfileType
+import com.astracam.dualdevice.storage.ExifMetadataHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -26,15 +27,12 @@ class ImageProcessingPipeline(private val profile: DeviceProfile) {
     ): Bitmap = withContext(Dispatchers.Default) {
         Log.i(TAG, "Starting processing pipeline on ${sourceFile.name}")
 
-        // Bounded decode based on target profile memory budget
-        val decoded = decodeDownscaled(sourceFile.absolutePath, profile.maxProcessingDimension)
-        val oriented = if (orientationDegrees != 0) {
-            rotateBitmap(decoded, orientationDegrees)
-        } else decoded
+        // Load properly oriented upright bitmap
+        val oriented = ExifMetadataHandler.loadOrientedBitmap(sourceFile, profile.maxProcessingDimension)
 
-        // Step 1: Noise reduction (lighter parameters on watch to respect CPU)
+        // Step 1: Denoising
         val denoised = if (profile.type == DeviceProfileType.H18_WATCH) {
-            oriented // Skip heavy spatial convolution on watch
+            oriented
         } else {
             noiseProcessor.applyEdgePreservingDenoise(oriented, spatialSigma = 1.5f, rangeSigma = 20.0f)
         }
@@ -60,16 +58,15 @@ class ImageProcessingPipeline(private val profile: DeviceProfile) {
         return@withContext sharpened
     }
 
-    suspend fun processMultiFrameHdr(
-        bracketFiles: List<File>,
-        orientationDegrees: Int = 0
-    ): Bitmap = withContext(Dispatchers.Default) {
+    suspend fun processMultiFrameHdr(bracketFiles: List<File>): Bitmap = withContext(Dispatchers.Default) {
+        Log.i(TAG, "Starting GCam-aligned multi-frame HDR merge on ${bracketFiles.size} frames")
+
+        // CRITICAL FIX: Load every bracket frame rotated upright according to its EXIF orientation
         val bitmaps = bracketFiles.map { file ->
-            val decoded = decodeDownscaled(file.absolutePath, profile.maxProcessingDimension)
-            if (orientationDegrees != 0) rotateBitmap(decoded, orientationDegrees) else decoded
+            ExifMetadataHandler.loadOrientedBitmap(file, profile.maxProcessingDimension)
         }
 
-        // Merge exposure bracket
+        // Merge exposure bracket (with translational alignment and motion deghosting)
         val fused = hdrMergeProcessor.mergeExposureBracket(bitmaps)
 
         // Refine with local color and edge contrast
@@ -77,27 +74,5 @@ class ImageProcessingPipeline(private val profile: DeviceProfile) {
         val sharpened = detailProcessor.applyEdgeAwareDetailSharpening(colored, strength = 0.35f)
 
         return@withContext sharpened
-    }
-
-    private fun decodeDownscaled(path: String, maxDim: Int): Bitmap {
-        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeFile(path, options)
-
-        var sampleSize = 1
-        val maxOriginal = max(options.outWidth, options.outHeight)
-        while ((maxOriginal / sampleSize) > maxDim) {
-            sampleSize *= 2
-        }
-
-        val decodeOptions = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize
-            inPreferredConfig = Bitmap.Config.ARGB_8888
-        }
-        return BitmapFactory.decodeFile(path, decodeOptions)
-    }
-
-    private fun rotateBitmap(src: Bitmap, degrees: Int): Bitmap {
-        val matrix = Matrix().apply { postRotate(degrees.toFloat()) }
-        return Bitmap.createBitmap(src, 0, 0, src.width, src.height, matrix, true)
     }
 }

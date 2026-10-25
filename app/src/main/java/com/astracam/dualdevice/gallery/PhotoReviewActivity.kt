@@ -292,7 +292,8 @@ class PhotoReviewActivity : AppCompatActivity() {
                         binding.sbSharpness.progress = aiParams.sharpness.toInt()
 
                         triggerRender()
-                        Toast.makeText(this@PhotoReviewActivity, "✨ Nano Banana 2 Tuning Applied!", Toast.LENGTH_SHORT).show()
+                        val feedback = result.message ?: "✨ AI Enhancement Applied!"
+                        Toast.makeText(this@PhotoReviewActivity, feedback, Toast.LENGTH_LONG).show()
                     }
                 }
             } catch (e: Exception) {
